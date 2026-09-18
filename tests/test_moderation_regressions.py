@@ -16,6 +16,7 @@ from app.handlers.moderation import (
     _is_known_command,
     _text_to_analyze,
 )
+from app.services import fallback
 from app.services.actions import apply_decision
 from app.services.history import FloodTracker
 from app.services.moderation import Decision
@@ -67,6 +68,12 @@ def test_album_is_one_flood_event_and_threshold_is_inclusive() -> None:
 def test_mentions_escape_html_and_sender_chat_is_not_a_user_link() -> None:
     assert user_mention(7, "A&B <C>") == '<a href="tg://user?id=7">A&amp;B &lt;C&gt;</a>'
     assert user_mention(-100, "News <feed>") == "News &lt;feed&gt;"
+
+
+def test_constructive_novice_feedback_is_not_a_rule_violation() -> None:
+    result = fallback.rule_based("Александр, ты новичок, учись до профи")
+    assert result.probability("insult") == 0.0
+    assert result.probability("bullying") == 0.0
 
 
 def test_warning_limit_bans_and_resets_warnings() -> None:
