@@ -85,6 +85,10 @@ python -m app.main
 | `DEFAULT_WARN_LIMIT` | warnings before a ban | `3` |
 | `DEFAULT_MUTE_MINUTES` | default mute duration | `60` |
 | `DEFAULT_LANGUAGE` | default interface language | `en` |
+| `DEFAULT_SELF_DELETE_SECONDS` | auto-delete the bot's messages after N seconds (`0` = off) | `0` |
+| `BACKLOG_ENABLED` | process messages missed while the bot was offline | `true` |
+| `BACKLOG_MAX_AGE_HOURS` | ignore missed updates older than this | `24` |
+| `BACKLOG_LIMIT` | maximum number of missed updates to process | `200` |
 
 ## Commands
 

@@ -57,6 +57,7 @@ _SQLITE_MIGRATIONS: dict[str, dict[str, str]] = {
     "chat_settings": {
         "action_spam": "VARCHAR(16) DEFAULT 'delete'",
         "language": "VARCHAR(8) DEFAULT 'en'",
+        "self_delete_seconds": "INTEGER DEFAULT 0",
     },
 }
 

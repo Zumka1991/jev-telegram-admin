@@ -229,6 +229,20 @@ docker compose logs -f          # Docker
 Every message the bot receives is logged as `Получено сообщение: ...`,
 followed by the decision.
 
+## Missed messages after downtime
+
+Telegram does not let bots read arbitrary chat history. However, while the bot
+is offline Telegram queues unconfirmed updates for **up to 24 hours**. On
+startup the bot fetches that backlog and processes it through the normal
+moderation pipeline (`BACKLOG_ENABLED`, `BACKLOG_MAX_AGE_HOURS`,
+`BACKLOG_LIMIT`). Messages older than the retention window cannot be
+recovered.
+
+```bash
+docker compose logs -f
+# Догон пропущенных сообщений: обработано 12, пропущено по возрасту 3
+```
+
 ## Updating
 
 Pull the latest code and rebuild:

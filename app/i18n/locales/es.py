@@ -97,6 +97,13 @@ STRINGS: dict[str, str] = {
     "toggle_flood": "Detección de flood",
     "duration_day_1": "1 día",
     "duration_days": "{value} días",
+    "duration_off": "desactivado",
+    "duration_seconds": "{value} s",
+    "duration_minutes": "{value} min",
+    "duration_hours": "{value} h",
+    "params_self_delete": "• Autoborrado de mensajes del bot: {value}",
+    "params_self_delete_header": "— Autoborrado de mensajes del bot —",
+    "alert_self_delete": "Autoborrado: {value}",
     # Language screen
     "language_title": "🌐 <b>Idioma de la interfaz</b>",
     "language_hint": "<i>Elige el idioma del bot para este chat.</i>",

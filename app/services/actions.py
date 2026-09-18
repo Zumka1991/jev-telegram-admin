@@ -17,6 +17,7 @@ from app.db.models import (
     ChatSettings,
 )
 from app.i18n import t
+from app.services.autodelete import auto_delete
 from app.services.moderation import Decision
 
 log = logging.getLogger(__name__)
@@ -32,16 +33,19 @@ async def _notify(
 ) -> None:
     if not settings.notify:
         return
+    ttl = settings.self_delete_seconds or 0
     try:
-        await bot.send_message(
+        sent = await bot.send_message(
             chat_id,
             text,
             reply_to_message_id=message_id,
             disable_web_page_preview=True,
         )
+        auto_delete.schedule(bot, chat_id, sent.message_id, ttl)
     except TelegramAPIError:
         try:
-            await bot.send_message(chat_id, text, disable_web_page_preview=True)
+            sent = await bot.send_message(chat_id, text, disable_web_page_preview=True)
+            auto_delete.schedule(bot, chat_id, sent.message_id, ttl)
         except TelegramAPIError as exc:
             log.debug("Не удалось отправить уведомление: %s", exc)
 

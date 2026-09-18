@@ -71,6 +71,9 @@ class ChatSettings(Base):
     flood_messages: Mapped[int] = mapped_column(Integer, default=7)
     flood_seconds: Mapped[int] = mapped_column(Integer, default=10)
 
+    # Через сколько секунд удалять собственные сообщения бота (0 — не удалять).
+    self_delete_seconds: Mapped[int] = mapped_column(Integer, default=0)
+
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow

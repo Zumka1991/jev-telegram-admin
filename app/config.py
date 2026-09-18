@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     default_flood_seconds: int = 10
 
     default_language: str = "en"
+    # Через сколько секунд удалять сообщения бота (0 — не удалять).
+    default_self_delete_seconds: int = 0
+
+    # Догон пропущенных сообщений при запуске (за время, пока бот был выключен).
+    # Telegram хранит апдейты не старше 24 часов.
+    backlog_enabled: bool = True
+    backlog_max_age_hours: int = 24
+    backlog_limit: int = 200
 
     log_level: str = "INFO"
 

@@ -11,6 +11,7 @@ from app.db.models import ACTION_OFF
 from app.i18n import t
 from app.services import fallback
 from app.services.actions import apply_decision
+from app.services.autodelete import auto_delete
 from app.services.history import flood_tracker, recent_context
 from app.services.jev import ModerationResult, jev_client
 from app.services.moderation import decide, enrich_with_heuristics
@@ -136,4 +137,7 @@ async def handle_new_members(message: Message, bot: Bot) -> None:
         language=message.from_user.language_code if message.from_user else None,
     )
     lang = settings.language
-    await message.answer(t(lang, "start") + t(lang, "help"))
+    sent = await message.answer(t(lang, "start") + t(lang, "help"))
+    auto_delete.schedule(
+        bot, message.chat.id, sent.message_id, settings.self_delete_seconds or 0
+    )

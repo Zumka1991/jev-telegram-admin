@@ -19,6 +19,7 @@ from app.i18n import (
     default_language,
     t,
 )
+from app.services.autodelete import auto_delete
 from app.services.telegram_utils import bot_can_moderate, is_admin
 
 router = Router(name="settings")
@@ -26,6 +27,7 @@ router = Router(name="settings")
 WARN_LIMITS = (1, 3, 5, 10)
 MUTE_MINUTES = (10, 60, 1440, 10080)
 THRESHOLDS = (0.40, 0.50, 0.60, 0.75)
+SELF_DELETE_OPTIONS = (0, 30, 60, 300, 3600)
 
 TOGGLE_FIELDS = ("ignore_admins", "notify", "flood_enabled")
 ALL_CATEGORIES = (*AI_ACTION_CATEGORIES, "flood")
@@ -41,6 +43,16 @@ def _duration_label(lang: str, minutes: int) -> str:
     if minutes == 10080:
         return t(lang, "duration_days", value=7)
     return str(minutes)
+
+
+def _self_delete_label(lang: str, seconds: int) -> str:
+    if seconds <= 0:
+        return t(lang, "duration_off")
+    if seconds < 60:
+        return t(lang, "duration_seconds", value=seconds)
+    if seconds < 3600:
+        return t(lang, "duration_minutes", value=seconds // 60)
+    return t(lang, "duration_hours", value=seconds // 3600)
 
 
 def _menu_markup(settings: ChatSettings) -> InlineKeyboardMarkup:
@@ -147,10 +159,17 @@ def _params_markup(settings: ChatSettings) -> InlineKeyboardMarkup:
             text=f"{'✅ ' if abs(settings.threshold - value) < 1e-6 else ''}{value:.2f}",
             callback_data=f"st:th:{value:.2f}",
         )
+    kb.button(text=t(lang, "params_self_delete_header"), callback_data="st:noop")
+    for seconds in SELF_DELETE_OPTIONS:
+        kb.button(
+            text=f"{'✅ ' if settings.self_delete_seconds == seconds else ''}"
+            f"{_self_delete_label(lang, seconds)}",
+            callback_data=f"st:sd:{seconds}",
+        )
     kb.button(text=t(lang, "btn_back"), callback_data="st:menu")
     kb.adjust(
         len(TOGGLE_FIELDS), 1, len(WARN_LIMITS), 1, len(MUTE_MINUTES), 1,
-        len(THRESHOLDS), 1,
+        len(THRESHOLDS), 1, len(SELF_DELETE_OPTIONS), 1,
     )
     return kb.as_markup()
 
@@ -172,6 +191,11 @@ def _params_text(settings: ChatSettings) -> str:
             t(lang, "params_warn_limit", value=settings.warn_limit),
             t(lang, "params_mute", value=settings.mute_minutes),
             t(lang, "params_threshold", value=f"{settings.threshold:.2f}"),
+            t(
+                lang,
+                "params_self_delete",
+                value=_self_delete_label(lang, settings.self_delete_seconds),
+            ),
         ]
     )
 
@@ -197,11 +221,14 @@ def _language_text(settings: ChatSettings) -> str:
 
 async def send_settings_menu(bot: Bot, chat_id: int, title: str | None) -> None:
     settings = await repository.get_settings(chat_id, title)
-    await bot.send_message(
+    sent = await bot.send_message(
         chat_id,
         _menu_text(settings, title),
         reply_markup=_menu_markup(settings),
         disable_web_page_preview=True,
+    )
+    auto_delete.schedule(
+        bot, chat_id, sent.message_id, settings.self_delete_seconds or 0
     )
 
 
@@ -246,6 +273,17 @@ async def on_settings_callback(callback: CallbackQuery, bot: Bot) -> None:
         settings.threshold = float(parts[2])
         await repository.save_settings(settings)
         await callback.answer(t(lang, "alert_threshold", value=f"{settings.threshold:.2f}"))
+
+    elif action == "sd" and len(parts) == 3:
+        settings.self_delete_seconds = int(parts[2])
+        await repository.save_settings(settings)
+        await callback.answer(
+            t(
+                lang,
+                "alert_self_delete",
+                value=_self_delete_label(lang, settings.self_delete_seconds),
+            )
+        )
 
     elif action == "set" and len(parts) == 4:
         _, _, category, value = parts

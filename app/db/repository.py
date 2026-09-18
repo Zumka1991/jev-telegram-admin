@@ -32,6 +32,7 @@ async def get_settings(
                 mute_minutes=settings.default_mute_minutes,
                 flood_messages=settings.default_flood_messages,
                 flood_seconds=settings.default_flood_seconds,
+                self_delete_seconds=settings.default_self_delete_seconds,
             )
             session.add(obj)
             await session.flush()

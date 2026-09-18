@@ -97,6 +97,13 @@ STRINGS: dict[str, str] = {
     "toggle_flood": "Детекция флуда",
     "duration_day_1": "1 день",
     "duration_days": "{value} дней",
+    "duration_off": "выкл",
+    "duration_seconds": "{value} сек",
+    "duration_minutes": "{value} мин",
+    "duration_hours": "{value} ч",
+    "params_self_delete": "• Автоудаление сообщений бота: {value}",
+    "params_self_delete_header": "— Автоудаление сообщений бота —",
+    "alert_self_delete": "Автоудаление: {value}",
     # Language screen
     "language_title": "🌐 <b>Язык интерфейса</b>",
     "language_hint": "<i>Выберите язык бота для этого чата.</i>",

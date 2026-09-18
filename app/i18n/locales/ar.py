@@ -97,6 +97,13 @@ STRINGS: dict[str, str] = {
     "toggle_flood": "كشف الإغراق",
     "duration_day_1": "يوم واحد",
     "duration_days": "{value} أيام",
+    "duration_off": "معطّل",
+    "duration_seconds": "{value} ثانية",
+    "duration_minutes": "{value} دقيقة",
+    "duration_hours": "{value} ساعة",
+    "params_self_delete": "• الحذف التلقائي لرسائل البوت: {value}",
+    "params_self_delete_header": "— الحذف التلقائي لرسائل البوت —",
+    "alert_self_delete": "الحذف التلقائي: {value}",
     # Language screen
     "language_title": "🌐 <b>لغة الواجهة</b>",
     "language_hint": "<i>اختر لغة البوت لهذه المجموعة.</i>",
