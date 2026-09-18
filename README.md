@@ -7,6 +7,8 @@ per-chat settings.
 
 [Русская версия](README.ru.md)
 
+📖 **New here? Follow the step-by-step [Setup Guide](docs/SETUP.md).**
+
 ## Features
 
 - **Detection categories**: profanity, insults, fraud/phishing, bullying,
