@@ -61,15 +61,35 @@ async def apply_decision(
     decision: Decision,
     excerpt: str = "",
 ) -> None:
+    # Повторная доставка апдейта или последующее редактирование уже
+    # наказанного сообщения не должны выдавать наказание второй раз.
+    if await repository.violation_exists(chat_id, message_id):
+        log.info("Сообщение %s/%s уже обработано — пропускаю", chat_id, message_id)
+        return
+
     action = decision.action
     mention = texts.user_mention(user_id, user_name)
 
     # На действие «предупреждение» исходное сообщение оставляем.
+    deleted = False
     if action in (ACTION_DELETE, ACTION_MUTE, ACTION_BAN):
         try:
             await bot.delete_message(chat_id, message_id)
+            deleted = True
         except TelegramAPIError as exc:
             log.warning("Не удалось удалить сообщение %s: %s", message_id, exc)
+
+    # Для delete удаление и есть действие. Не сообщаем об успехе и не пишем
+    # нарушение в статистику, если Telegram его фактически отклонил.
+    if action == ACTION_DELETE and not deleted:
+        await _notify(
+            bot,
+            chat_id=chat_id,
+            message_id=message_id,
+            settings=settings,
+            text=t(settings.language, "no_rights"),
+        )
+        return
 
     actual_action = action
     warnings: int | None = None
@@ -80,6 +100,7 @@ async def apply_decision(
             if warnings >= settings.warn_limit:
                 await bot.ban_chat_member(chat_id, user_id)
                 actual_action = ACTION_BAN
+                await repository.reset_warnings(chat_id, user_id)
             else:
                 await repository.log_violation(
                     chat_id=chat_id,
@@ -100,10 +121,12 @@ async def apply_decision(
                 permissions=ChatPermissions(can_send_messages=False),
                 until_date=until,
             )
+            await repository.bump_violation(chat_id, user_id)
 
         elif action == ACTION_BAN:
             await bot.ban_chat_member(chat_id, user_id)
             await repository.reset_warnings(chat_id, user_id)
+            await repository.bump_violation(chat_id, user_id)
 
         elif action == ACTION_DELETE:
             await repository.bump_violation(chat_id, user_id)

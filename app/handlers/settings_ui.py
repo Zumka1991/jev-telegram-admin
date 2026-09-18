@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import html
+
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app import texts
 from app.db import repository
 from app.db.models import (
-    ACTION_OFF,
     ACTION_ORDER,
     AI_ACTION_CATEGORIES,
     ChatSettings,
@@ -82,7 +84,11 @@ def _menu_text(settings: ChatSettings, title: str | None) -> str:
     status = t(lang, "status_on" if settings.enabled else "status_off")
     return "\n".join(
         [
-            t(lang, "settings_chat", title=title or settings.chat_id),
+            t(
+                lang,
+                "settings_chat",
+                title=html.escape(str(title or settings.chat_id), quote=False),
+            ),
             t(lang, "settings_moderation", status=status),
             t(lang, "settings_threshold", value=f"{settings.threshold:.2f}"),
             t(lang, "settings_warn_limit", value=settings.warn_limit),
@@ -260,22 +266,50 @@ async def on_settings_callback(callback: CallbackQuery, bot: Bot) -> None:
         await callback.answer(t(lang, "alert_saved"))
 
     elif action == "wl" and len(parts) == 3:
-        settings.warn_limit = int(parts[2])
+        try:
+            value = int(parts[2])
+        except ValueError:
+            value = -1
+        if value not in WARN_LIMITS:
+            await callback.answer()
+            return
+        settings.warn_limit = value
         await repository.save_settings(settings)
         await callback.answer(t(lang, "alert_warn_limit", value=settings.warn_limit))
 
     elif action == "mm" and len(parts) == 3:
-        settings.mute_minutes = int(parts[2])
+        try:
+            value = int(parts[2])
+        except ValueError:
+            value = -1
+        if value not in MUTE_MINUTES:
+            await callback.answer()
+            return
+        settings.mute_minutes = value
         await repository.save_settings(settings)
         await callback.answer(t(lang, "alert_mute", value=settings.mute_minutes))
 
     elif action == "th" and len(parts) == 3:
-        settings.threshold = float(parts[2])
+        try:
+            value = float(parts[2])
+        except ValueError:
+            value = -1.0
+        if value not in THRESHOLDS:
+            await callback.answer()
+            return
+        settings.threshold = value
         await repository.save_settings(settings)
         await callback.answer(t(lang, "alert_threshold", value=f"{settings.threshold:.2f}"))
 
     elif action == "sd" and len(parts) == 3:
-        settings.self_delete_seconds = int(parts[2])
+        try:
+            value = int(parts[2])
+        except ValueError:
+            value = -1
+        if value not in SELF_DELETE_OPTIONS:
+            await callback.answer()
+            return
+        settings.self_delete_seconds = value
         await repository.save_settings(settings)
         await callback.answer(
             t(
@@ -287,9 +321,12 @@ async def on_settings_callback(callback: CallbackQuery, bot: Bot) -> None:
 
     elif action == "set" and len(parts) == 4:
         _, _, category, value = parts
-        if category in ALL_CATEGORIES:
+        if category in ALL_CATEGORIES and value in ACTION_ORDER:
             setattr(settings, f"action_{category}", value)
             await repository.save_settings(settings)
+        else:
+            await callback.answer()
+            return
         await callback.answer(t(lang, "alert_saved"))
 
     elif action == "lang" and len(parts) == 3:
@@ -305,6 +342,9 @@ async def on_settings_callback(callback: CallbackQuery, bot: Bot) -> None:
 
     elif action == "cat" and len(parts) == 3:
         category = parts[2]
+        if category not in ALL_CATEGORIES:
+            await callback.answer()
+            return
         await _edit(
             callback,
             _category_text(settings, category),
@@ -335,7 +375,11 @@ async def on_settings_callback(callback: CallbackQuery, bot: Bot) -> None:
         _menu_text(settings, callback.message.chat.title),
         _menu_markup(settings),
     )
-    await callback.answer()
+    already_answered = (
+        action in {"toggle", "wl", "mm", "th", "sd"} and len(parts) == 3
+    ) or (action == "set" and len(parts) == 4)
+    if not already_answered:
+        await callback.answer()
 
 
 async def _edit(
@@ -349,6 +393,6 @@ async def _edit(
         await callback.message.edit_text(
             text, reply_markup=markup, disable_web_page_preview=True
         )
-    except Exception:
+    except TelegramAPIError:
         # Сообщение могло не измениться — это не ошибка.
         pass

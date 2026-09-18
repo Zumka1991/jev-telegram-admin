@@ -18,6 +18,12 @@ per-chat settings.
   duration — so even the *penalty* can be chosen by the model.
 - **Smart spam heuristics**: identical text cross-posted across many chats and
   link/DM-heavy posts raise the spam score.
+- **Complete message coverage**: text, media captions, and edited messages;
+  stickers and media count toward flood detection, while a photo album counts
+  as one event.
+- **Complex senders**: messages from other bots, channels, and anonymous admins
+  cannot bypass checks; when such a sender cannot be muted, the violating
+  message is deleted instead.
 - **Configurable per chat**: for every category choose `off`, `auto`, `warn`,
   `delete`, `mute` or `ban`; set thresholds, warning limits and mute duration.
 - **Multi-language interface**: English, Russian, Spanish, Portuguese, Arabic.
@@ -37,6 +43,10 @@ per-chat settings.
    with many links/contacts increase the spam score.
 4. The result is compared with the chat threshold and settings, then applied.
 5. Everything is stored in SQLite: chat settings, violations, user stats.
+
+A redelivered update does not cause a second punishment. When Telegram upgrades
+a basic group to a supergroup, the bot moves its settings and statistics to the
+new chat ID.
 
 ## Quick start (Docker)
 

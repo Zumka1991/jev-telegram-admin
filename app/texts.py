@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import html
+
 from app.db.models import (
     ACTION_AUTO,
     ACTION_BAN,
@@ -31,7 +33,11 @@ ACTION_EMOJI: dict[str, str] = {
 
 
 def user_mention(user_id: int, name: str) -> str:
-    safe = name.replace("<", "").replace(">", "").replace("&", "")
+    safe = html.escape(name, quote=False)
+    # sender_chat (анонимный админ или канал) имеет отрицательный id и не
+    # поддерживает tg://user-ссылку.
+    if user_id <= 0:
+        return safe
     return f'<a href="tg://user?id={user_id}">{safe}</a>'
 
 

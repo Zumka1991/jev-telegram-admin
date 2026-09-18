@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from aiogram import Bot, F, Router
+from aiogram import Bot, Router
 from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
@@ -139,23 +139,35 @@ async def cmd_warn(message: Message, bot: Bot, command: CommandObject) -> None:
 
     warn_limit = settings.warn_limit if settings else 3
     warnings = await repository.add_warning(message.chat.id, target.id)
+    mention = user_mention(target.id, display_name(target))
+    actual_action = "warn"
+    if warnings >= warn_limit:
+        try:
+            await bot.ban_chat_member(message.chat.id, target.id)
+        except TelegramAPIError:
+            await repository.log_violation(
+                chat_id=message.chat.id,
+                user_id=target.id,
+                message_id=message.reply_to_message.message_id,
+                category="manual",
+                confidence=1.0,
+                action=actual_action,
+                excerpt=(command.args or "")[:200],
+            )
+            await _reply(message, t(lang, "no_rights"), settings)
+            return
+        actual_action = "ban"
+        await repository.reset_warnings(message.chat.id, target.id)
     await repository.log_violation(
         chat_id=message.chat.id,
         user_id=target.id,
         message_id=message.reply_to_message.message_id,
         category="manual",
         confidence=1.0,
-        action="warn",
+        action=actual_action,
         excerpt=(command.args or "")[:200],
     )
-    mention = user_mention(target.id, display_name(target))
-    if warnings >= warn_limit:
-        try:
-            await bot.ban_chat_member(message.chat.id, target.id)
-        except TelegramAPIError:
-            await _reply(message, t(lang, "no_rights"), settings)
-            return
-        await repository.reset_warnings(message.chat.id, target.id)
+    if actual_action == "ban":
         await _reply(message, t(lang, "warn_ban", mention=mention, limit=warn_limit), settings)
     else:
         await _reply(
@@ -219,7 +231,7 @@ async def cmd_check(message: Message, bot: Bot, command: CommandObject) -> None:
     lines = [t(lang, "check_title")]
     for category in CHECK_CATEGORIES:
         probability = result.probability(category)
-        filled = int(round(probability * 10))
+        filled = round(probability * 10)
         bar = "█" * filled + "░" * (10 - filled)
         lines.append(f"{texts.category_label(lang, category)}: {probability:.2f} {bar}")
     if result.severity is not None:

@@ -368,6 +368,9 @@ class JevClient:
         except JevError as exc:
             log.debug("Jev moderate_safe failed: %s", exc)
             return ModerationResult(failed=True)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            log.exception("Неожиданный ответ или ошибка Jev")
+            return ModerationResult(failed=True)
 
 
 jev_client = JevClient()

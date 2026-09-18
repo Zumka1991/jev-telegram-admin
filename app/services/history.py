@@ -31,6 +31,18 @@ class SpamTracker:
     def __init__(self, window_seconds: int = 24 * 3600) -> None:
         self._window = window_seconds
         self._reposts: dict[str, deque[tuple[float, int, int]]] = defaultdict(deque)
+        self._last_cleanup = time.monotonic()
+
+    def _cleanup(self, now: float) -> None:
+        if now - self._last_cleanup < min(60.0, float(self._window)):
+            return
+        cutoff = now - self._window
+        for fp, events in list(self._reposts.items()):
+            while events and events[0][0] < cutoff:
+                events.popleft()
+            if not events:
+                del self._reposts[fp]
+        self._last_cleanup = now
 
     def observe(self, *, chat_id: int, user_id: int, text: str) -> RepostSignal:
         fp = fingerprint(text)
@@ -38,6 +50,7 @@ class SpamTracker:
             return RepostSignal()
 
         now = time.monotonic()
+        self._cleanup(now)
         cutoff = now - self._window
         events = self._reposts[fp]
         while events and events[0][0] < cutoff:
@@ -78,7 +91,22 @@ class FloodTracker:
     """Скользящее окно сообщений на пользователя для детекции флуда."""
 
     def __init__(self) -> None:
-        self._events: dict[tuple[int, int], deque[float]] = defaultdict(deque)
+        self._events: dict[tuple[int, int], deque[tuple[float, object]]] = defaultdict(
+            deque
+        )
+        self._last_cleanup = time.monotonic()
+        self._max_window_seconds = 0
+
+    def _cleanup(self, now: float) -> None:
+        if now - self._last_cleanup < 60.0:
+            return
+        cutoff = now - self._max_window_seconds
+        for key, events in list(self._events.items()):
+            while events and events[0][0] < cutoff:
+                events.popleft()
+            if not events:
+                del self._events[key]
+        self._last_cleanup = now
 
     def hit(
         self,
@@ -87,14 +115,22 @@ class FloodTracker:
         user_id: int,
         limit: int,
         window_seconds: int,
+        event_id: object | None = None,
     ) -> bool:
         now = time.monotonic()
+        self._max_window_seconds = max(self._max_window_seconds, window_seconds)
+        self._cleanup(now)
         events = self._events[(chat_id, user_id)]
         cutoff = now - window_seconds
-        while events and events[0] < cutoff:
+        while events and events[0][0] < cutoff:
             events.popleft()
-        events.append(now)
-        return len(events) > limit
+        token = event_id if event_id is not None else object()
+        # Telegram присылает каждый элемент альбома отдельным сообщением. Один
+        # media_group_id считаем одним событием, иначе обычный фотоальбом легко
+        # даёт ложный мут за флуд.
+        if not any(existing == token for _, existing in events):
+            events.append((now, token))
+        return len(events) >= limit
 
     def reset(self, chat_id: int, user_id: int) -> None:
         self._events.pop((chat_id, user_id), None)
@@ -103,4 +139,3 @@ class FloodTracker:
 recent_context = RecentContext()
 flood_tracker = FloodTracker()
 spam_tracker = SpamTracker()
-

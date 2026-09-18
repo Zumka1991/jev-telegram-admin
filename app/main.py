@@ -101,6 +101,16 @@ async def process_backlog(bot: Bot, dp: Dispatcher) -> None:
             if processed >= settings.backlog_limit:
                 break
 
+    # Подтверждаем последний обработанный пакет. Без запроса со следующим
+    # offset Telegram может снова отдать его при запуске long polling.
+    if offset is not None:
+        await bot.get_updates(
+            offset=offset,
+            limit=1,
+            timeout=0,
+            allowed_updates=allowed,
+        )
+
     if processed or skipped:
         log.info(
             "Догон пропущенных сообщений: обработано %s, пропущено по возрасту %s",
@@ -125,9 +135,9 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
+    dp.include_router(moderation.router)
     dp.include_router(commands.router)
     dp.include_router(settings_ui.router)
-    dp.include_router(moderation.router)
 
     # Гарантируем long polling и что апдейты за время простоя не пропадут.
     await bot.delete_webhook(drop_pending_updates=False)

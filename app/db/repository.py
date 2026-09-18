@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select, update
 
 from app.config import settings
 from app.db.database import session_scope
@@ -46,6 +46,61 @@ async def get_settings(
 async def save_settings(obj: ChatSettings) -> None:
     async with session_scope() as session:
         await session.merge(obj)
+
+
+async def migrate_chat(old_chat_id: int, new_chat_id: int, title: str | None) -> None:
+    """Переносит настройки и историю при апгрейде группы в супергруппу."""
+    if old_chat_id == new_chat_id:
+        return
+    async with session_scope() as session:
+        old_settings = await session.get(ChatSettings, old_chat_id)
+        new_settings = await session.get(ChatSettings, new_chat_id)
+        if old_settings is not None and new_settings is None:
+            old_settings.chat_id = new_chat_id
+            if title:
+                old_settings.title = title
+        elif old_settings is not None:
+            # Если новый чат уже успел создать настройки, считаем их более
+            # свежими и убираем только устаревшую запись старого id.
+            await session.execute(
+                delete(ChatSettings).where(ChatSettings.chat_id == old_chat_id)
+            )
+
+        old_stats = (
+            await session.scalars(
+                select(UserStats).where(UserStats.chat_id == old_chat_id)
+            )
+        ).all()
+        for old_state in old_stats:
+            new_state = await session.scalar(
+                select(UserStats)
+                .where(
+                    UserStats.chat_id == new_chat_id,
+                    UserStats.user_id == old_state.user_id,
+                )
+                .limit(1)
+            )
+            if new_state is None:
+                old_state.chat_id = new_chat_id
+                continue
+            new_state.warnings = max(
+                new_state.warnings or 0, old_state.warnings or 0
+            )
+            new_state.violations = (
+                (new_state.violations or 0) + (old_state.violations or 0)
+            )
+            dates = [
+                value
+                for value in (new_state.last_violation_at, old_state.last_violation_at)
+                if value is not None
+            ]
+            new_state.last_violation_at = max(dates) if dates else None
+            await session.delete(old_state)
+        await session.execute(
+            update(Violation)
+            .where(Violation.chat_id == old_chat_id)
+            .values(chat_id=new_chat_id)
+        )
 
 
 @dataclass(slots=True)
@@ -132,6 +187,25 @@ async def log_violation(
                 excerpt=excerpt[:500],
             )
         )
+
+
+async def violation_exists(chat_id: int, message_id: int) -> bool:
+    """Возвращает True, если это сообщение уже привело к наказанию.
+
+    Telegram может повторно доставить апдейт после перезапуска, а изменённое
+    сообщение приходит отдельным апдейтом. Эта проверка не даёт повторно
+    предупредить/ограничить участника за одно и то же сообщение.
+    """
+    async with session_scope() as session:
+        stmt = (
+            select(Violation.id)
+            .where(
+                Violation.chat_id == chat_id,
+                Violation.message_id == message_id,
+            )
+            .limit(1)
+        )
+        return (await session.scalar(stmt)) is not None
 
 
 async def chat_stats(chat_id: int, days: int = 7) -> list[tuple[str, int]]:
